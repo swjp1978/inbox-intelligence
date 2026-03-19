@@ -1,0 +1,2020 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inbox Intelligence — Gmail Edition</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #0d0f10;
+    --surface: #151819;
+    --surface2: #1c2022;
+    --border: #262c2e;
+    --accent: #4af0b8;
+    --accent2: #b8f04a;
+    --accent3: #f0b84a;
+    --accent4: #f04a7a;
+    --text: #e4ede9;
+    --muted: #5a6e68;
+    --invest: #4af0b8;
+    --expense: #f0b84a;
+    --capital: #b8f04a;
+    --review: #f04a7a;
+    --gmail: #ea4335;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px; height: 100vh; overflow: hidden; }
+  .noise { position: fixed; inset: 0; pointer-events: none; z-index: 0; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E"); opacity: 0.4; }
+  .layout { position: relative; z-index: 1; display: grid; grid-template-columns: 256px 1fr; height: 100vh; overflow: hidden; }
+
+  /* SIDEBAR */
+  .sidebar { border-right: 1px solid var(--border); padding: 24px 18px; display: flex; flex-direction: column; gap: 24px; height: 100vh; overflow-y: auto; overflow-x: hidden; }
+  .logo-title { font-family: 'Fraunces', serif; font-size: 19px; font-weight: 600; color: var(--accent); letter-spacing: -0.5px; }
+  .logo-sub { color: var(--muted); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 3px; }
+  .logo-edition { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; background: rgba(234,67,53,0.12); border: 1px solid rgba(234,67,53,0.25); border-radius: 4px; padding: 2px 8px; font-size: 10px; color: #f08070; letter-spacing: 0.06em; }
+
+  .status-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 9px; }
+  .status-row { display: flex; justify-content: space-between; align-items: center; }
+  .status-label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; }
+  .status-val { font-size: 11px; display: flex; align-items: center; gap: 5px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .dot-green  { background: var(--accent);  box-shadow: 0 0 6px var(--accent); }
+  .dot-grey   { background: var(--muted); }
+  .dot-yellow { background: var(--accent3); box-shadow: 0 0 6px var(--accent3); animation: pulse 1.5s infinite; }
+  .dot-red    { background: var(--gmail);   box-shadow: 0 0 6px var(--gmail); }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+
+  .nav { display: flex; flex-direction: column; gap: 3px; }
+  .nav-item { padding: 8px 11px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 9px; transition: all 0.15s; color: var(--muted); font-size: 12px; border: 1px solid transparent; user-select: none; }
+  .nav-item:hover { background: var(--surface); color: var(--text); }
+  .nav-item.active { background: var(--surface2); color: var(--accent); border-color: var(--border); }
+  .nav-icon { width: 15px; text-align: center; font-size: 13px; }
+
+  .stats-mini { display: flex; flex-direction: column; gap: 7px; }
+  .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 10px; background: var(--surface); border-radius: 6px; border-left: 3px solid; }
+  .stat-row.invest  { border-color: var(--invest); }
+  .stat-row.expense { border-color: var(--expense); }
+  .stat-row.capital { border-color: var(--capital); }
+  .stat-row.review  { border-color: var(--review); }
+  .stat-label { color: var(--muted); font-size: 10px; }
+  .stat-val   { font-size: 14px; font-weight: 500; }
+
+  /* BUTTONS */
+  .btn { padding: 9px 15px; border-radius: 7px; border: none; cursor: pointer; font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500; transition: all 0.15s; letter-spacing: 0.02em; }
+  .btn-primary   { background: var(--accent); color: #0d0f10; }
+  .btn-primary:hover   { background: #6fffd0; transform: translateY(-1px); }
+  .btn-primary:disabled { background: var(--muted); cursor: not-allowed; transform: none; color: #0d0f10; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-gmail { background: rgba(234,67,53,0.12); color: #f08070; border: 1px solid rgba(234,67,53,0.3); }
+  .btn-gmail:hover { background: rgba(234,67,53,0.22); }
+  .btn-danger { background: transparent; color: var(--review); border: 1px solid var(--review); }
+  .btn-sm  { padding: 5px 10px; font-size: 11px; }
+  .btn-full { width: 100%; }
+
+  /* MAIN */
+  .main { padding: 28px 32px; display: flex; flex-direction: column; gap: 24px; height: 100vh; overflow-y: auto; overflow-x: hidden; }
+  .page { display: none; }
+  .page.active { display: flex; flex-direction: column; gap: 22px; animation: fadeIn 0.2s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)} }
+
+  .page-header { display: flex; justify-content: space-between; align-items: flex-start; }
+  .page-title { font-family: 'Fraunces', serif; font-size: 26px; font-weight: 300; letter-spacing: -0.8px; }
+  .page-title span { color: var(--accent); font-style: italic; }
+  .page-actions { display: flex; gap: 8px; align-items: center; }
+
+  /* CARDS */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+  .card-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 14px; }
+
+  /* METRICS */
+  .grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .metric-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .metric-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  .metric-val   { font-family: 'Fraunces', serif; font-size: 30px; font-weight: 300; letter-spacing: -1px; margin: 5px 0 2px; }
+  .metric-sub   { font-size: 10px; color: var(--muted); }
+
+  /* PROGRESS & LOG */
+  .progress-bar  { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.4s ease; }
+  .log-panel { background: #090b0c; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 11px; height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
+  .log-line { display: flex; gap: 10px; line-height: 1.5; }
+  .log-time { color: var(--muted); flex-shrink: 0; font-size: 10px; padding-top: 1px; }
+  .log-msg         { color: var(--text); }
+  .log-msg.success { color: var(--accent); }
+  .log-msg.warn    { color: var(--accent3); }
+  .log-msg.error   { color: var(--review); }
+  .log-msg.info    { color: #7ab8f5; }
+  .log-msg.gmail   { color: #f08070; }
+
+  /* TABLES */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  thead tr { border-bottom: 1px solid var(--border); }
+  th { text-align: left; padding: 7px 10px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 500; }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--border); font-size: 12px; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+
+  /* BADGES */
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+  .badge-invest  { background: rgba(74,240,184,0.1);  color: var(--invest); }
+  .badge-expense { background: rgba(240,184,74,0.1);  color: var(--expense); }
+  .badge-capital { background: rgba(184,240,74,0.1);  color: var(--capital); }
+  .badge-review  { background: rgba(240,74,122,0.1);  color: var(--review); }
+  .badge-done    { background: rgba(255,255,255,0.05); color: var(--muted); }
+
+  /* TABS */
+  .tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+  .tab { padding: 9px 15px; font-size: 12px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* PIPELINE STEPS */
+  .steps { display: flex; flex-direction: column; }
+  .step { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .step:last-child { border-bottom: none; }
+  .step-num { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; flex-shrink: 0; border: 1px solid var(--border); color: var(--muted); transition: all 0.3s; }
+  .step-num.active { background: var(--accent); color: #0d0f10; border-color: var(--accent); }
+  .step-num.done   { background: var(--surface2); color: var(--accent); border-color: var(--accent); }
+  .step-title { font-size: 12px; font-weight: 500; margin-bottom: 2px; }
+  .step-desc  { font-size: 11px; color: var(--muted); line-height: 1.5; }
+
+  /* FORMS */
+  .form-row   { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+  .form-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+  .form-input { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 11px; border-radius: 6px; font-family: 'DM Mono', monospace; font-size: 12px; outline: none; transition: border-color 0.15s; width: 100%; }
+  .form-input:focus { border-color: var(--accent); }
+  .form-input::placeholder { color: var(--muted); }
+  select.form-input option { background: var(--surface); }
+  textarea.form-input { resize: vertical; line-height: 1.6; }
+
+  .divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+  /* INFO BOXES */
+  .info-box { border-radius: 8px; padding: 12px 14px; font-size: 11px; color: var(--muted); display: flex; gap: 10px; align-items: flex-start; line-height: 1.6; border: 1px solid; }
+  .info-box.blue    { background: rgba(74,168,240,0.06);  border-color: rgba(74,168,240,0.2);  }
+  .info-box.blue strong    { color: #7ab8f5; }
+  .info-box.green   { background: rgba(74,240,184,0.05); border-color: rgba(74,240,184,0.2); }
+  .info-box.green strong   { color: var(--accent); }
+  .info-box.yellow  { background: rgba(240,184,74,0.05); border-color: rgba(240,184,74,0.2); }
+  .info-box.yellow strong  { color: var(--accent3); }
+  .info-box.red     { background: rgba(240,74,122,0.05); border-color: rgba(240,74,122,0.2); }
+  .info-box.red strong     { color: var(--review); }
+
+  /* MODAL */
+  .modal-overlay { display: none; position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.75); backdrop-filter: blur(4px); align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 26px; width: 540px; max-width: 92vw; max-height: 85vh; overflow-y: auto; }
+  .modal-title { font-family: 'Fraunces', serif; font-size: 19px; font-weight: 300; margin-bottom: 18px; }
+  .modal-close { float: right; cursor: pointer; color: var(--muted); font-size: 18px; line-height: 1; }
+  .modal-close:hover { color: var(--text); }
+
+  /* MISC */
+  .tag { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px; background: var(--surface2); color: var(--muted); margin-right: 3px; }
+  .empty-state { text-align: center; padding: 36px; color: var(--muted); }
+  .empty-icon  { font-size: 28px; margin-bottom: 10px; }
+  .empty-title { font-family: 'Fraunces', serif; font-size: 17px; color: var(--text); margin-bottom: 5px; }
+  .code-block  { background: #090b0c; border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-size: 10px; color: var(--accent); line-height: 1.8; overflow-x: auto; }
+  .code-block pre { white-space: pre-wrap; word-break: break-all; }
+
+  @keyframes spin { to{transform:rotate(360deg)} }
+  .spinner { width: 13px; height: 13px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; display: inline-block; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+
+  /* Scrollbars */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+  * { scrollbar-width: thin; scrollbar-color: var(--border) var(--surface); }
+</style>
+</head>
+<body>
+<div class="noise"></div>
+<div class="layout">
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div>
+    <div class="logo-title">Inbox Intelligence</div>
+    <div class="logo-sub">Financial Filing System</div>
+    <div class="logo-edition">✉ Gmail Edition</div>
+  </div>
+
+  <div class="status-panel">
+    <div class="status-row">
+      <span class="status-label">Gmail</span>
+      <span class="status-val" id="gmail-status"><span class="dot dot-grey"></span>Not connected</span>
+    </div>
+    <div class="status-row">
+      <span class="status-label">Claude AI</span>
+      <span class="status-val" id="ai-status"><span class="dot dot-grey"></span>Standby</span>
+    </div>
+    <div class="status-row">
+      <span class="status-label">OneDrive</span>
+      <span class="status-val" id="od-status"><span class="dot dot-grey"></span>Not configured</span>
+    </div>
+    <div class="status-row">
+      <span class="status-label">Last Scan</span>
+      <span class="status-val" id="last-scan" style="font-size:10px;color:var(--muted)">Never</span>
+    </div>
+  </div>
+
+  <nav class="nav">
+    <div class="nav-item active" onclick="showPage('dashboard')"><span class="nav-icon">◈</span>Dashboard</div>
+    <div class="nav-item" onclick="showPage('process')"><span class="nav-icon">⟳</span>Process Inbox</div>
+    <div class="nav-item" onclick="showPage('emails')"><span class="nav-icon">✉</span>Email Log</div>
+    <div class="nav-item" onclick="showPage('data')"><span class="nav-icon">⊟</span>Extracted Data</div>
+    <div class="nav-item" onclick="showPage('export')"><span class="nav-icon">↗</span>Export & Reports</div>
+    <div class="nav-item" onclick="showPage('settings')"><span class="nav-icon">⚙</span>Settings</div>
+  </nav>
+
+  <div>
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:8px">By Category</div>
+    <div class="stats-mini">
+      <div class="stat-row invest" ><span class="stat-label">Investment Stmts</span><span class="stat-val" id="count-invest"  style="color:var(--invest)">0</span></div>
+      <div class="stat-row expense"><span class="stat-label">Tax Invoices</span>    <span class="stat-val" id="count-expense" style="color:var(--expense)">0</span></div>
+      <div class="stat-row capital"><span class="stat-label">Capital Calls</span>   <span class="stat-val" id="count-capital" style="color:var(--capital)">0</span></div>
+      <div class="stat-row review" ><span class="stat-label">Needs Review</span>    <span class="stat-val" id="count-review"  style="color:var(--review)">0</span></div>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- DASHBOARD -->
+  <div id="page-dashboard" class="page active">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Financial <span>Overview</span></div>
+        <div style="color:var(--muted);font-size:11px;margin-top:3px" id="last-run-label">No scan run yet — go to Process Inbox to begin</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-secondary" onclick="showPage('settings')">⚙ Settings</button>
+        <button class="btn btn-primary" id="quick-scan-btn" onclick="startProcessing()">▶ Scan Inbox</button>
+      </div>
+    </div>
+
+    <div class="grid-4">
+      <div class="metric-card"><div class="metric-label">Emails Processed</div><div class="metric-val" id="m-total">—</div><div class="metric-sub">This session</div></div>
+      <div class="metric-card"><div class="metric-label">PDFs Extracted</div><div class="metric-val" id="m-pdfs">—</div><div class="metric-sub" style="color:var(--invest)">Attachments parsed</div></div>
+      <div class="metric-card"><div class="metric-label">Total $ Identified</div><div class="metric-val" id="m-dollars">—</div><div class="metric-sub" style="color:var(--expense)">Across all docs</div></div>
+      <div class="metric-card"><div class="metric-label">Flagged for Review</div><div class="metric-val" id="m-review" style="color:var(--review)">—</div><div class="metric-sub" style="color:var(--review)">Action required</div></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Recent Activity</div>
+        <div id="recent-activity">
+          <div class="empty-state"><div class="empty-icon">◈</div><div class="empty-title">No activity yet</div><div style="font-size:11px">Run a scan to see results here</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Pipeline Status</div>
+        <div class="steps">
+          <div class="step"><div class="step-num" id="s1">1</div><div><div class="step-title">Connect Gmail</div><div class="step-desc">Authenticate via Claude's Gmail connector</div></div></div>
+          <div class="step"><div class="step-num" id="s2">2</div><div><div class="step-title">Fetch Emails & PDFs</div><div class="step-desc">Search all folders for PDF attachments</div></div></div>
+          <div class="step"><div class="step-num" id="s3">3</div><div><div class="step-title">AI Classify & Extract</div><div class="step-desc">Claude categorises and extracts structured data</div></div></div>
+          <div class="step"><div class="step-num" id="s4">4</div><div><div class="step-title">Flag for Review</div><div class="step-desc">High-value or uncertain items flagged</div></div></div>
+          <div class="step"><div class="step-num" id="s5">5</div><div><div class="step-title">File PDFs to OneDrive</div><div class="step-desc">Upload PDFs into organised OneDrive folders</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROCESS INBOX -->
+  <div id="page-process" class="page">
+    <div class="page-header">
+      <div class="page-title">Process <span>Inbox</span></div>
+      <button class="btn btn-primary" id="run-btn" onclick="startProcessing()">▶ Run Now</button>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Scan Configuration</div>
+
+        <div class="form-row">
+          <div class="form-label">Quick Scan Presets</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px">
+            <button class="btn btn-secondary btn-sm" onclick="setPreset('investment')">📈 Investment Stmts</button>
+            <button class="btn btn-secondary btn-sm" onclick="setPreset('invoices')">🧾 Tax Invoices</button>
+            <button class="btn btn-secondary btn-sm" onclick="setPreset('capital')">📋 Capital Calls</button>
+            <button class="btn btn-secondary btn-sm" onclick="setPreset('all')">All PDFs</button>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label">Gmail Search Query</div>
+          <input class="form-input" id="gmail-query" value="has:attachment filename:pdf">
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6">
+            Gmail search syntax. Examples:<br>
+            <span style="color:var(--accent)">from:perpetual.com.au has:attachment filename:pdf</span><br>
+            <span style="color:var(--accent)">subject:statement has:attachment filename:pdf</span><br>
+            <span style="color:var(--accent)">subject:(invoice OR receipt) has:attachment</span>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label">Filter by Sender Domain (optional)</div>
+          <input class="form-input" id="sender-filter" placeholder="e.g. blackstone.com, perpetual.com.au">
+          <div style="font-size:10px;color:var(--muted);margin-top:4px">Comma-separated domains — added to query as from: filters</div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label">Subject Must Contain (optional)</div>
+          <input class="form-input" id="subject-filter" placeholder="e.g. statement, invoice, capital call">
+          <div style="font-size:10px;color:var(--muted);margin-top:4px">Comma-separated keywords — any match qualifies</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-row">
+            <div class="form-label">Date Range</div>
+            <select class="form-input" id="date-range">
+              <option value="7">Last 7 days</option>
+              <option value="30" selected>Last 30 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="365">Last 12 months</option>
+              <option value="0">All time</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-label">Max Emails</div>
+            <input class="form-input" type="number" id="max-emails" value="20" min="1" max="100">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-label">Tax / Financial Year</div>
+          <select class="form-input" id="tax-year">
+            <option value="2025">FY2024–25 (Jul 2024 – Jun 2025)</option>
+            <option value="2024">FY2023–24 (Jul 2023 – Jun 2024)</option>
+          </select>
+        </div>
+
+        <div id="query-preview" class="info-box blue" style="margin-top:4px">
+          <span>🔍</span><span id="query-preview-text">Query preview will appear here</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Classification Rules</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <span style="color:var(--muted);font-size:11px">Applied before AI — keyword matching on subject &amp; sender</span>
+          <button class="btn btn-secondary btn-sm" onclick="openModal('rule-modal')">+ Add Rule</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Pattern</th><th>Category</th><th></th></tr></thead>
+            <tbody id="rules-tbody"></tbody>
+          </table>
+        </div>
+        <div class="divider"></div>
+        <div class="card-title">Processing Options</div>
+        <div class="form-row" style="margin-bottom:8px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
+            <input type="checkbox" id="opt-extract" checked style="accent-color:var(--accent)">
+            Extract data from PDFs using Claude AI
+          </label>
+        </div>
+        <div class="form-row" style="margin-bottom:8px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
+            <input type="checkbox" id="opt-classify" checked style="accent-color:var(--accent)">
+            AI-classify emails (uses API credits)
+          </label>
+        </div>
+        <div class="form-row">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px">
+            <input type="checkbox" id="opt-flag" checked style="accent-color:var(--accent)">
+            Flag items over $50,000 for review
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Processing Log</div>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+        <div style="flex:1"><div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div></div>
+        <span id="progress-label" style="font-size:11px;color:var(--muted);white-space:nowrap;min-width:120px;text-align:right">Idle</span>
+      </div>
+      <div class="log-panel" id="log-panel">
+        <div class="log-line"><span class="log-time">--:--:--</span><span class="log-msg">System ready. Add your Anthropic API key in Settings, then click Run Now.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EMAIL LOG -->
+  <div id="page-emails" class="page">
+    <div class="page-header">
+      <div class="page-title">Email <span>Log</span></div>
+      <select class="form-input btn-sm" id="filter-cat" onchange="renderEmailTable()" style="width:auto;padding:6px 10px">
+        <option value="">All Categories</option>
+        <option value="investment">Investment</option>
+        <option value="expense">Tax Invoice</option>
+        <option value="capital">Capital Call</option>
+        <option value="review">Needs Review</option>
+      </select>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>From</th><th>Subject</th><th>Category</th><th>PDFs</th><th>Status</th><th></th></tr></thead>
+          <tbody id="email-tbody"><tr><td colspan="7"><div class="empty-state"><div class="empty-icon">✉</div><div class="empty-title">No emails yet</div><div>Run a scan first</div></div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXTRACTED DATA -->
+  <div id="page-data" class="page">
+    <div class="page-header"><div class="page-title">Extracted <span>Data</span></div></div>
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('tab-invest',this)">Investment Statements</div>
+      <div class="tab" onclick="switchTab('tab-expense',this)">Tax Invoices</div>
+      <div class="tab" onclick="switchTab('tab-capital',this)">Capital Calls</div>
+      <div class="tab" onclick="switchTab('tab-flagged',this)">⚑ Flagged</div>
+    </div>
+    <div class="tab-content active" id="tab-invest">
+      <div class="card"><div class="table-wrap"><table>
+        <thead><tr><th>Date</th><th>Fund / Institution</th><th>Portfolio Value</th><th>Period</th><th>Asset Class</th><th>Source Email</th></tr></thead>
+        <tbody id="invest-tbody"><tr><td colspan="6"><div class="empty-state" style="padding:20px"><div class="empty-title">No investment data</div></div></td></tr></tbody>
+      </table></div></div>
+    </div>
+    <div class="tab-content" id="tab-expense">
+      <div class="card"><div class="table-wrap"><table>
+        <thead><tr><th>Date</th><th>Vendor</th><th>Description</th><th>Amount</th><th>GST</th><th>Category</th><th>Source</th></tr></thead>
+        <tbody id="expense-tbody"><tr><td colspan="7"><div class="empty-state" style="padding:20px"><div class="empty-title">No invoices</div></div></td></tr></tbody>
+      </table></div></div>
+    </div>
+    <div class="tab-content" id="tab-capital">
+      <div class="card"><div class="table-wrap"><table>
+        <thead><tr><th>Date</th><th>Fund Name</th><th>Call Amount</th><th>Due Date</th><th>Purpose</th><th>Bank Details</th><th>Status</th></tr></thead>
+        <tbody id="capital-tbody"><tr><td colspan="7"><div class="empty-state" style="padding:20px"><div class="empty-title">No capital calls</div></div></td></tr></tbody>
+      </table></div></div>
+    </div>
+    <div class="tab-content" id="tab-flagged">
+      <div class="card"><div class="table-wrap"><table>
+        <thead><tr><th>Date</th><th>Subject</th><th>Reason Flagged</th><th>Category</th><th>Action</th></tr></thead>
+        <tbody id="flagged-tbody"><tr><td colspan="5"><div class="empty-state" style="padding:20px"><div class="empty-title">Nothing flagged ✓</div></div></td></tr></tbody>
+      </table></div></div>
+    </div>
+  </div>
+
+  <!-- EXPORT -->
+  <div id="page-export" class="page">
+    <div class="page-header"><div class="page-title">Export & <span>OneDrive</span></div></div>
+
+    <div class="grid-2">
+      <!-- Local Excel download -->
+      <div class="card">
+        <div class="card-title">↓ Download Excel Report</div>
+        <p style="color:var(--muted);font-size:12px;line-height:1.7;margin-bottom:16px">Generates a multi-sheet .xlsx with Investment Statements, Tax Invoices, Capital Calls, and a Summary tab.</p>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn btn-primary btn-full" onclick="exportExcel()">↓ Download Excel (.xlsx)</button>
+          <button class="btn btn-secondary btn-full" onclick="exportCSV()">↓ Download CSV</button>
+        </div>
+        <div class="divider"></div>
+        <div class="form-row">
+          <div class="form-label">OneDrive Folder (for PDF filing)</div>
+          <input class="form-input" id="od-folder" value="Financial Reports" placeholder="Financial Reports">
+        </div>
+        <div class="form-row">
+          <div class="form-label">Excel Workbook Name (local download)</div>
+          <input class="form-input" id="od-workbook" value="Financial_Inbox_Data.xlsx" placeholder="Financial_Inbox_Data.xlsx">
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="saveODSettings()">Save Folder Settings</button>
+      </div>
+
+      <!-- OneDrive PDF filing -->
+      <div class="card">
+        <div class="card-title">📁 OneDrive — File PDFs</div>
+        <div id="od-auth-status" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
+          <span id="od-auth-icon" style="font-size:16px">🔒</span>
+          <div>
+            <div id="od-auth-title" style="font-size:12px;font-weight:500">Not signed in to Microsoft</div>
+            <div id="od-auth-sub" style="font-size:10px;color:var(--muted);margin-top:2px">Go to Settings → OneDrive to connect</div>
+          </div>
+        </div>
+        <p style="color:var(--muted);font-size:12px;line-height:1.7;margin-bottom:14px">Uploads PDF attachments from processed emails into organised OneDrive subfolders by category. Runs automatically after each scan.</p>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:12px;margin-bottom:14px;font-size:11px;line-height:2">
+          📁 <span id="od-folder-display">Financial Reports</span>/PDFs/<br>
+          &nbsp;&nbsp;├── 📂 <span style="color:var(--invest)">Investment Statements/</span><br>
+          &nbsp;&nbsp;├── 📂 <span style="color:var(--expense)">Tax Invoices/</span><br>
+          &nbsp;&nbsp;├── 📂 <span style="color:var(--capital)">Capital Calls/</span><br>
+          &nbsp;&nbsp;└── 📂 <span style="color:var(--review)">Review Required/</span>
+        </div>
+        <button class="btn btn-full" onclick="uploadPDFsToOneDrive()" style="background:rgba(0,120,212,0.15);color:#5aabf0;border:1px solid rgba(0,120,212,0.3)">📁 Upload PDFs to OneDrive Now</button>
+        <div id="od-pdf-status" style="margin-top:12px;display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Tax Summary — <span id="tax-year-label">FY2024–25</span></div>
+        <div class="form-row">
+          <div class="form-label">Financial Year</div>
+          <select class="form-input" id="export-tax-year" onchange="document.getElementById('tax-year-label').textContent=this.options[this.selectedIndex].text.split(' ')[0]">
+            <option>FY2024–25 (Jul 2024 – Jun 2025)</option>
+            <option>FY2023–24 (Jul 2023 – Jun 2024)</option>
+          </select>
+        </div>
+        <button class="btn btn-secondary btn-full" onclick="generateTaxSummary()">Generate Summary</button>
+        <div id="tax-summary-output" style="margin-top:14px"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Capital Calls — Payment Schedule</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Fund</th><th>Call Amount</th><th>Due Date</th><th>Days Until Due</th><th>Status</th></tr></thead>
+            <tbody id="capital-schedule-tbody"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">No capital calls recorded</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div id="page-settings" class="page">
+    <div class="page-header"><div class="page-title"><span>Settings</span></div></div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">API Keys</div>
+        <div class="form-row">
+          <div class="form-label">Anthropic API Key</div>
+          <input type="password" class="form-input" id="api-key-input" placeholder="sk-ant-...">
+          <div style="font-size:10px;color:var(--muted);margin-top:4px">Get your key at <span style="color:var(--accent)">console.anthropic.com</span> → API Keys</div>
+        </div>
+        <div class="form-row">
+          <div class="form-label">Gmail Connection</div>
+          <div id="gmail-conn-status" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:9px 11px;font-size:12px;color:var(--muted);margin-bottom:10px">Not connected — enter credentials below and click Save</div>
+          <div class="form-row" style="margin-bottom:8px">
+            <div class="form-label">Google Client ID</div>
+            <input class="form-input" id="gmail-client-id" placeholder="xxxxxxxxx.apps.googleusercontent.com">
+          </div>
+          <div class="form-row" style="margin-bottom:8px">
+            <div class="form-label">Google Client Secret</div>
+            <input type="password" class="form-input" id="gmail-client-secret" placeholder="GOCSPX-...">
+          </div>
+          <div class="form-row" style="margin-bottom:8px">
+            <div class="form-label">Refresh Token (from OAuth Playground)</div>
+            <input type="password" class="form-input" id="gmail-refresh-token" placeholder="1//04Q6m-...">
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">Get this from <span style="color:var(--accent)">developers.google.com/oauthplayground</span> with your Gmail scope</div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveSettings()" style="margin-top:4px">Save Settings</button>
+        <div id="settings-saved" style="display:none;margin-top:8px" class="info-box green"><span>✓</span><span><strong>Saved.</strong> Settings stored in your browser.</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">⊞ OneDrive Connection</div>
+        <div id="ms-conn-status" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:9px 11px;font-size:12px;color:var(--muted);margin-bottom:12px">Not connected</div>
+        <div class="form-row">
+          <div class="form-label">Azure Client ID (from earlier setup)</div>
+          <input class="form-input" id="ms-client-id" value="9a64c829-b00f-4815-bb49-775684fbfd86" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+        </div>
+        <div class="form-row">
+          <div class="form-label">OneDrive Folder Path</div>
+          <input class="form-input" id="od-folder" value="Financial Reports" placeholder="Financial Reports">
+        </div>
+        <div class="form-row">
+          <div class="form-label">Excel Workbook Name</div>
+          <input class="form-input" id="od-workbook" value="Financial_Inbox_Data.xlsx" placeholder="Financial_Inbox_Data.xlsx">
+        </div>
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <button class="btn btn-full" id="ms-signin-btn" onclick="startMSAuth()" style="background:rgba(0,120,212,0.15);color:#5aabf0;border:1px solid rgba(0,120,212,0.3)">⊞ Sign in with Microsoft</button>
+          <button class="btn btn-danger btn-sm" id="ms-signout-btn" onclick="msSignOut()" style="display:none;white-space:nowrap">Sign out</button>
+        </div>
+        <div class="info-box blue" style="margin-top:12px">
+          <span>ℹ</span><span><strong>Same Azure app as before.</strong> This grants OneDrive and Excel access only — not email. Sign in with your Microsoft/Outlook account.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">AI Extraction Prompt</div>
+      <p style="color:var(--muted);font-size:11px;margin-bottom:12px;line-height:1.6">This system prompt is sent to Claude with each PDF. Customise it for your specific fund managers, expense categories, or reporting needs.</p>
+      <textarea class="form-input" id="system-prompt" rows="9">You are a financial document analysis assistant for an Australian investor. Extract structured data from the document provided.
+
+Classify the document as exactly one of: INVESTMENT_STATEMENT, TAX_INVOICE, CAPITAL_CALL, or OTHER.
+
+For INVESTMENT_STATEMENT extract: fund_name, portfolio_value (AUD), reporting_period, asset_class, institution.
+For TAX_INVOICE extract: vendor, date, amount_ex_gst, gst_amount, total (AUD), description, expense_category (Professional Fees / Research / Advisory / Subscription / Admin / Other).
+For CAPITAL_CALL extract: fund_name, call_amount (note currency if not AUD), due_date, purpose, bank_account_details, wire_instructions.
+
+Flag for review if: amount exceeds $50,000, currency is not AUD, document type is unclear, or key fields are missing.
+
+Return JSON only. No explanation or prose.</textarea>
+      <button class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="savePrompt()">Save Prompt</button>
+    </div>
+  </div>
+
+</main>
+</div>
+
+<!-- RULE MODAL -->
+<div class="modal-overlay" id="rule-modal">
+  <div class="modal">
+    <span class="modal-close" onclick="closeModal('rule-modal')">✕</span>
+    <div class="modal-title">Add Classification Rule</div>
+    <div class="form-row">
+      <div class="form-label">Keyword / Pattern (matched against subject and sender)</div>
+      <input class="form-input" id="rule-pattern" placeholder="e.g. Capital Call, Statement, Invoice, receipt">
+    </div>
+    <div class="form-row">
+      <div class="form-label">Assign to Category</div>
+      <select class="form-input" id="rule-category">
+        <option value="investment">Investment Statement</option>
+        <option value="expense">Tax Invoice / Receipt</option>
+        <option value="capital">Capital Call Notice</option>
+        <option value="review">Flag for Review</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+      <button class="btn btn-secondary" onclick="closeModal('rule-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveRule()">Add Rule</button>
+    </div>
+  </div>
+</div>
+
+<!-- EMAIL DETAIL MODAL -->
+<div class="modal-overlay" id="email-modal">
+  <div class="modal">
+    <span class="modal-close" onclick="closeModal('email-modal')">✕</span>
+    <div class="modal-title" id="email-modal-title">Email Detail</div>
+    <div id="email-modal-body"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  emails: [], investments: [], expenses: [], capitalCalls: [], flagged: [],
+  isProcessing: false,
+  gmail:  { accessToken: '', refreshToken: '', tokenExpiry: 0, email: '', clientId: '', clientSecret: '' },
+  ms365:  { accessToken: '', refreshToken: '', tokenExpiry: 0, clientId: '9a64c829-b00f-4815-bb49-775684fbfd86', userName: '', odFolder: 'Financial Reports', odWorkbook: 'Financial_Inbox_Data.xlsx' },
+  rules: [
+    { pattern: 'Capital Call',  category: 'capital' },
+    { pattern: 'Drawdown',      category: 'capital' },
+    { pattern: 'Statement',     category: 'investment' },
+    { pattern: 'Portfolio',     category: 'investment' },
+    { pattern: 'Invoice',       category: 'expense' },
+    { pattern: 'Receipt',       category: 'expense' },
+    { pattern: 'receipt',       category: 'expense' },
+    { pattern: 'Tax',           category: 'expense' },
+    { pattern: 'GST',           category: 'expense' },
+  ],
+  settings: { apiKey: '', systemPrompt: '' }
+};
+
+// ============================================================
+// PERSISTENCE
+// ============================================================
+const SK = {
+  apiKey:       'ii_api_key',
+  prompt:       'ii_system_prompt',
+  rules:        'ii_rules',
+  gmailToken:   'ii_gmail_token',
+  gmailRefresh: 'ii_gmail_refresh',
+  gmailExpiry:  'ii_gmail_expiry',
+  gmailEmail:   'ii_gmail_email',
+  gmailClient:  'ii_gmail_client',
+  gmailSecret:  'ii_gmail_secret',
+  msToken:      'ii_ms_token',
+  msRefresh:    'ii_ms_refresh',
+  msExpiry:     'ii_ms_expiry',
+  msClient:     'ii_ms_client',
+  msUser:       'ii_ms_user',
+  odFolder:     'ii_od_folder',
+  odWorkbook:   'ii_od_workbook',
+};
+
+function persistSave() {
+  try {
+    localStorage.setItem(SK.apiKey,       state.settings.apiKey        || '');
+    localStorage.setItem(SK.prompt,       state.settings.systemPrompt  || '');
+    localStorage.setItem(SK.rules,        JSON.stringify(state.rules));
+    localStorage.setItem(SK.gmailToken,   state.gmail.accessToken      || '');
+    localStorage.setItem(SK.gmailRefresh, state.gmail.refreshToken     || '');
+    localStorage.setItem(SK.gmailExpiry,  state.gmail.tokenExpiry      || '');
+    localStorage.setItem(SK.gmailEmail,   state.gmail.email            || '');
+    localStorage.setItem(SK.gmailClient,  state.gmail.clientId         || '');
+    localStorage.setItem(SK.gmailSecret,  state.gmail.clientSecret     || '');
+    localStorage.setItem(SK.msToken,      state.ms365.accessToken      || '');
+    localStorage.setItem(SK.msRefresh,    state.ms365.refreshToken     || '');
+    localStorage.setItem(SK.msExpiry,     state.ms365.tokenExpiry      || '');
+    localStorage.setItem(SK.msClient,     state.ms365.clientId         || '');
+    localStorage.setItem(SK.msUser,       state.ms365.userName         || '');
+    localStorage.setItem(SK.odFolder,     state.ms365.odFolder         || '');
+    localStorage.setItem(SK.odWorkbook,   state.ms365.odWorkbook       || '');
+  } catch(e) {}
+}
+
+function persistLoad() {
+  try {
+    const apiKey   = localStorage.getItem(SK.apiKey);
+    const prompt   = localStorage.getItem(SK.prompt);
+    const rules    = localStorage.getItem(SK.rules);
+    const gToken   = localStorage.getItem(SK.gmailToken);
+    const gRefresh = localStorage.getItem(SK.gmailRefresh);
+    const gExpiry  = localStorage.getItem(SK.gmailExpiry);
+    const gEmail   = localStorage.getItem(SK.gmailEmail);
+    const gClient  = localStorage.getItem(SK.gmailClient);
+    const gSecret  = localStorage.getItem(SK.gmailSecret);
+    const mToken   = localStorage.getItem(SK.msToken);
+    const mRefresh = localStorage.getItem(SK.msRefresh);
+    const mExpiry  = localStorage.getItem(SK.msExpiry);
+    const mClient  = localStorage.getItem(SK.msClient);
+    const mUser    = localStorage.getItem(SK.msUser);
+    const odFolder = localStorage.getItem(SK.odFolder);
+    const odWb     = localStorage.getItem(SK.odWorkbook);
+
+    if (apiKey)  { state.settings.apiKey = apiKey; const el = document.getElementById('api-key-input'); if(el) el.value = apiKey; }
+    if (prompt)  { state.settings.systemPrompt = prompt; const el = document.getElementById('system-prompt'); if(el) el.value = prompt; }
+    if (rules)   { try { state.rules = JSON.parse(rules); } catch(e) {} }
+    if (gClient) { state.gmail.clientId     = gClient;  const el = document.getElementById('gmail-client-id');     if(el) el.value = gClient; }
+    if (gSecret) { state.gmail.clientSecret = gSecret;  const el = document.getElementById('gmail-client-secret'); if(el) el.value = gSecret; }
+    if (gRefresh){ state.gmail.refreshToken = gRefresh; const el = document.getElementById('gmail-refresh-token'); if(el) el.value = gRefresh; }
+    if (gEmail)  { state.gmail.email = gEmail; }
+    if (gExpiry) { state.gmail.tokenExpiry = parseInt(gExpiry); }
+    if (mClient) { state.ms365.clientId   = mClient; const el = document.getElementById('ms-client-id'); if(el) el.value = mClient; }
+    if (mUser)   { state.ms365.userName   = mUser; }
+    if (mExpiry) { state.ms365.tokenExpiry= parseInt(mExpiry); }
+    if (mRefresh){ state.ms365.refreshToken = mRefresh; }
+    if (odFolder){ state.ms365.odFolder   = odFolder; const el = document.getElementById('od-folder');   if(el) el.value = odFolder; }
+    if (odWb)    { state.ms365.odWorkbook = odWb;     const el = document.getElementById('od-workbook'); if(el) el.value = odWb; }
+
+    // Restore Gmail
+    if (gToken && gExpiry && Date.now() < parseInt(gExpiry)) {
+      state.gmail.accessToken = gToken;
+      updateGmailStatus(gEmail || 'Connected');
+      setTimeout(silentGmailRefresh, Math.max(0, parseInt(gExpiry) - Date.now() - 300000));
+    } else if (gRefresh && gClient && gSecret) {
+      silentGmailRefresh();
+    }
+
+    // Restore MS365
+    if (mToken && mExpiry && Date.now() < parseInt(mExpiry)) {
+      state.ms365.accessToken = mToken;
+      updateMSStatus(mUser || 'Connected');
+      setTimeout(silentMSRefresh, Math.max(0, parseInt(mExpiry) - Date.now() - 300000));
+    } else if (mRefresh && mClient) {
+      silentMSRefresh();
+    }
+
+    // Update OneDrive display
+    updateODDisplay();
+  } catch(e) {}
+}
+
+// ============================================================
+// NAV
+// ============================================================
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.textContent.trim().toLowerCase().startsWith(id.slice(0,4).toLowerCase())) n.classList.add('active');
+  });
+}
+
+function switchTab(id, el) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (el) el.classList.add('active');
+}
+
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ============================================================
+// LOG
+// ============================================================
+function log(msg, type='') {
+  const panel = document.getElementById('log-panel');
+  const now   = new Date().toTimeString().slice(0,8);
+  const line  = document.createElement('div');
+  line.className = 'log-line';
+  line.innerHTML = `<span class="log-time">${now}</span><span class="log-msg ${type}">${msg}</span>`;
+  panel.appendChild(line);
+  panel.scrollTop = panel.scrollHeight;
+}
+
+function setProgress(pct, label) {
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-label').textContent = label;
+}
+
+function setStep(n, status) {
+  const el = document.getElementById('s' + n);
+  el.className = 'step-num ' + status;
+  el.textContent = status === 'done' ? '✓' : n;
+}
+
+// ============================================================
+// MAIN PROCESSING
+// ============================================================
+async function startProcessing() {
+  if (state.isProcessing) return;
+
+  const apiKey = state.settings.apiKey || document.getElementById('api-key-input').value.trim();
+  if (!apiKey) {
+    alert('Please add your Anthropic API key in Settings first.');
+    showPage('settings');
+    return;
+  }
+  state.settings.apiKey = apiKey;
+  state.settings.systemPrompt = document.getElementById('system-prompt').value;
+
+  state.isProcessing = true;
+  ['quick-scan-btn','run-btn'].forEach(id => { const el=document.getElementById(id); if(el) el.disabled=true; });
+  showPage('process');
+  [1,2,3,4,5].forEach(i => setStep(i, ''));
+  setProgress(0, 'Starting...');
+  document.getElementById('ai-status').innerHTML = '<span class="dot dot-yellow"></span>Processing';
+
+  // Step 1 — Connect Gmail (refresh token first)
+  setStep(1, 'active');
+  setProgress(8, 'Connecting to Gmail...');
+  log('Refreshing Gmail token...', 'gmail');
+  await silentGmailRefresh();
+  if (!state.gmail.accessToken) {
+    log('Gmail not connected. Go to Settings and click Save to reconnect.', 'error');
+    setStep(1, '');
+    state.isProcessing = false;
+    ['quick-scan-btn','run-btn'].forEach(id => { const el=document.getElementById(id); if(el) el.disabled=false; });
+    return;
+  }
+  log('Gmail connected ✓', 'success');
+  await sleep(200);
+  setStep(1, 'done');
+
+  // Step 2 — Fetch emails
+  setStep(2, 'active');
+  setProgress(15, 'Fetching emails...');
+  log('Searching Gmail for PDF attachments...', 'gmail');
+  let emails = [];
+  try {
+    emails = await fetchGmailEmails();
+    document.getElementById('gmail-status').innerHTML = '<span class="dot dot-red"></span>Connected';
+    log(`Found ${emails.length} email(s) with PDF attachments`, emails.length > 0 ? 'success' : 'warn');
+    if (emails.length === 0) {
+      log('No PDFs found. Check your search query in Process Inbox settings.', 'warn');
+    }
+  } catch(e) {
+    log('Gmail fetch error: ' + e.message, 'error');
+    log('Check your Anthropic API key and Gmail MCP connection.', 'warn');
+  }
+  setStep(2, 'done');
+  setProgress(30, 'Classifying...');
+
+  // Step 3 — Classify + Extract
+  setStep(3, 'active');
+  const classified = await classifyEmails(emails);
+  const extracted  = await extractPDFData(classified);
+  flagItems(extracted);
+  setStep(3, 'done');
+
+  // Update state and UI immediately after extraction — don't wait for OneDrive
+  state.emails       = classified;
+  state.investments  = extracted.investments  || [];
+  state.expenses     = extracted.expenses     || [];
+  state.capitalCalls = extracted.capitalCalls || [];
+
+  setProgress(80, 'Updating dashboard...');
+  updateDashboard();
+  renderEmailTable();
+  renderDataTables();
+  renderCapitalSchedule();
+
+  // Step 4 — Flag
+  setStep(4, 'done');
+  setProgress(90, 'Filing PDFs to OneDrive...');
+
+  // Step 5 — PDF upload to OneDrive only (background, non-blocking)
+  setStep(5, 'active');
+  if (state.ms365.accessToken) {
+    (async () => {
+      try {
+        await uploadAllPDFsBackground(classified);
+      } catch(e) { log('PDF upload error: ' + e.message, 'warn'); }
+      setStep(5, 'done');
+      setProgress(100, 'Complete ✓');
+      log('OneDrive PDF filing complete', 'success');
+    })();
+  } else {
+    setStep(5, 'done');
+    setProgress(100, 'Complete ✓');
+    log('OneDrive not connected — PDFs not filed. Sign in via Settings to enable.', 'warn');
+  }
+
+  document.getElementById('ai-status').innerHTML   = '<span class="dot dot-green"></span>Ready';
+  document.getElementById('last-run-label').textContent = 'Last scan: ' + new Date().toLocaleString('en-AU');
+  document.getElementById('last-scan').textContent  = new Date().toLocaleTimeString('en-AU');
+  log(`Extraction done. ${classified.length} email(s), ${state.investments.length + state.expenses.length + state.capitalCalls.length} document(s), ${state.flagged.length} flagged.${state.ms365.accessToken ? ' OneDrive syncing in background...' : ''}`, 'success');
+
+  state.isProcessing = false;
+  ['quick-scan-btn','run-btn'].forEach(id => { const el=document.getElementById(id); if(el) el.disabled=false; });
+}
+
+// ============================================================
+// GMAIL AUTH — refresh token exchange (no redirect flow needed)
+// ============================================================
+
+// ============================================================
+// GMAIL AUTH — refresh token exchange (no redirect flow needed)
+// ============================================================
+async function silentGmailRefresh() {
+  const clientId     = state.gmail.clientId     || localStorage.getItem(SK.gmailClient) || '';
+  const clientSecret = state.gmail.clientSecret || localStorage.getItem(SK.gmailSecret) || '';
+  const refreshToken = state.gmail.refreshToken || localStorage.getItem(SK.gmailRefresh) || '';
+  if (!refreshToken || !clientId || !clientSecret) {
+    log('Gmail credentials missing — go to Settings and click Save.', 'warn');
+    return;
+  }
+  try {
+    const body = new URLSearchParams({
+      client_id:     clientId,
+      client_secret: clientSecret,
+      grant_type:    'refresh_token',
+      refresh_token: refreshToken,
+    });
+    const res  = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString()
+    });
+    const data = await res.json();
+    if (data.error) {
+      log('Gmail token refresh error: ' + (data.error_description||data.error), 'warn');
+      state.gmail.accessToken = '';
+      return;
+    }
+    state.gmail.accessToken  = data.access_token;
+    state.gmail.tokenExpiry  = Date.now() + data.expires_in * 1000;
+    state.gmail.clientId     = clientId;
+    state.gmail.clientSecret = clientSecret;
+    state.gmail.refreshToken = refreshToken;
+    persistSave();
+    if (!state.gmail.email) {
+      try {
+        const profile = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+          headers: { 'Authorization': 'Bearer ' + data.access_token }
+        }).then(r => r.json());
+        state.gmail.email = profile.email || 'Connected';
+        persistSave();
+      } catch(e) { state.gmail.email = 'Connected'; }
+    }
+    updateGmailStatus(state.gmail.email);
+    // Schedule next auto-refresh 5 mins before expiry
+    setTimeout(silentGmailRefresh, (data.expires_in - 300) * 1000);
+  } catch(e) {
+    log('Gmail token refresh failed: ' + e.message, 'warn');
+    state.gmail.accessToken = '';
+  }
+}
+
+function updateGmailStatus(email) {
+  const el = document.getElementById('gmail-status');
+  if (el) el.innerHTML = `<span class="dot dot-red"></span>${email}`;
+  const conn = document.getElementById('gmail-conn-status');
+  if (conn) { conn.style.color = 'var(--accent)'; conn.textContent = `✓ Connected as ${email}`; }
+}
+
+// ============================================================
+// GMAIL REST API FETCH
+// ============================================================
+async function gmailFetch(endpoint, options={}) {
+  // Refresh if no token or token expired/expiring within 5 mins
+  if (!state.gmail.accessToken || Date.now() > (state.gmail.tokenExpiry - 300000)) {
+    await silentGmailRefresh();
+  }
+  const token = state.gmail.accessToken;
+  if (!token) throw new Error('Gmail not authenticated. Go to Settings and click Save to reconnect.');
+  const res = await fetch('https://gmail.googleapis.com/gmail/v1' + endpoint, {
+    ...options,
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', ...(options.headers||{}) }
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(()=>({}));
+    throw new Error(err.error?.message || `Gmail API ${res.status}`);
+  }
+  return res.json();
+}
+
+// ============================================================
+// QUERY BUILDER
+// ============================================================
+const PRESETS = {
+  investment: { query: 'has:attachment filename:pdf', subject: 'statement,portfolio,annual report,quarterly' },
+  invoices:   { query: 'has:attachment filename:pdf', subject: 'invoice,receipt,tax invoice,gst' },
+  capital:    { query: 'has:attachment filename:pdf', subject: 'capital call,drawdown,capital notice' },
+  all:        { query: 'has:attachment filename:pdf', subject: '' },
+};
+
+function setPreset(key) {
+  const p = PRESETS[key];
+  if (!p) return;
+  document.getElementById('gmail-query').value    = p.query;
+  document.getElementById('subject-filter').value = p.subject;
+  updateQueryPreview();
+}
+
+function buildQuery() {
+  let q = (document.getElementById('gmail-query')?.value || '').trim() || 'has:attachment filename:pdf';
+  const days     = parseInt(document.getElementById('date-range')?.value || '30');
+  const senders  = (document.getElementById('sender-filter')?.value  || '').split(',').map(s=>s.trim()).filter(Boolean);
+  const subjects = (document.getElementById('subject-filter')?.value || '').split(',').map(s=>s.trim()).filter(Boolean);
+  if (days > 0) {
+    const after = new Date(Date.now() - days * 86400000);
+    const ds = `${after.getFullYear()}/${String(after.getMonth()+1).padStart(2,'0')}/${String(after.getDate()).padStart(2,'0')}`;
+    if (!q.includes('after:')) q += ` after:${ds}`;
+  }
+  if (senders.length === 1)  q += ` from:${senders[0]}`;
+  else if (senders.length > 1) q += ` {${senders.map(s=>'from:'+s).join(' ')}}`;
+  if (subjects.length === 1)  q += ` subject:${subjects[0]}`;
+  else if (subjects.length > 1) q += ` subject:(${subjects.join(' OR ')})`;
+  return q;
+}
+
+function updateQueryPreview() {
+  const el = document.getElementById('query-preview-text');
+  if (el) el.textContent = buildQuery();
+}
+
+// ============================================================
+// GMAIL API HELPERS
+// ============================================================
+function getAllParts(payload) {
+  if (!payload) return [];
+  const parts = [];
+  // Check if this node itself is an attachment
+  if (payload.filename && payload.filename.length > 0 && payload.body?.attachmentId) {
+    parts.push(payload);
+  }
+  // Recurse into nested parts
+  if (payload.parts && Array.isArray(payload.parts)) {
+    for (const p of payload.parts) {
+      parts.push(...getAllParts(p));
+    }
+  }
+  return parts;
+}
+
+function isPDF(part) {
+  const name = (part.filename || '').toLowerCase();
+  const mime = (part.mimeType || '').toLowerCase();
+  return name.endsWith('.pdf') ||
+         mime === 'application/pdf' ||
+         mime === 'application/octet-stream' && name.endsWith('.pdf') ||
+         mime.includes('pdf');
+}
+
+async function fetchGmailEmails() {
+  const maxEmails = parseInt(document.getElementById('max-emails')?.value || '20');
+  const fullQuery = buildQuery();
+  log(`Gmail query: "${fullQuery}"`, 'gmail');
+
+  const listRes  = await gmailFetch(`/users/me/messages?q=${encodeURIComponent(fullQuery)}&maxResults=${maxEmails}`);
+  const messages = listRes.messages || [];
+  log(`Found ${messages.length} matching message(s)`, messages.length > 0 ? 'success' : 'warn');
+  if (!messages.length) { log('No emails matched. Try adjusting the query or date range.', 'warn'); return []; }
+
+  const emails = [];
+  for (const msg of messages) {
+    try {
+      // Fetch full payload to see all parts
+      const detail  = await gmailFetch(`/users/me/messages/${msg.id}?format=full&fields=id,snippet,payload`);
+      const hdrs    = detail.payload?.headers || [];
+      const get     = n => (hdrs.find(h => h.name.toLowerCase() === n.toLowerCase())||{}).value||'';
+      const subject = get('Subject'), from = get('From'), date = get('Date');
+      const allParts = getAllParts(detail.payload);
+      const pdfs     = allParts.filter(isPDF);
+
+      // Log first few for diagnostics
+      if (emails.length < 3) {
+        log(`  "${subject.slice(0,45)}" — ${allParts.length} part(s), ${pdfs.length} PDF(s)`, pdfs.length > 0 ? 'success' : 'info');
+        if (allParts.length > 0 && pdfs.length === 0) {
+          allParts.slice(0,3).forEach(p => log(`    · ${p.filename||'(no name)'} [${p.mimeType}]`, 'info'));
+        }
+      }
+
+      if (pdfs.length > 0) {
+        emails.push({
+          id:          msg.id,
+          subject,
+          from:        from.replace(/<.*>/,'').trim() || from,
+          date:        date ? new Date(date).toISOString() : new Date().toISOString(),
+          snippet:     (detail.snippet||'').slice(0,150),
+          attachments: pdfs.map(p => p.filename),
+          parts:       pdfs
+        });
+        log(`  ✓ "${subject.slice(0,55)}" — ${pdfs.length} PDF(s)`, 'success');
+      }
+    } catch(e) { log(`  Skipped ${msg.id}: ${e.message}`, 'warn'); }
+  }
+
+  log(`Ready: ${emails.length} email(s) with PDF attachments`, emails.length > 0 ? 'success' : 'warn');
+  return emails;
+}
+
+// ============================================================
+// AI CLASSIFICATION
+// ============================================================
+async function classifyEmails(emails) {
+  const results = [];
+  for (let i = 0; i < emails.length; i++) {
+    const email = emails[i];
+    log(`Classifying: "${(email.subject||'').slice(0,60)}"`);
+    const category = await classifyOne(email);
+    results.push({ ...email, category });
+    setProgress(30 + Math.round((i / Math.max(emails.length,1)) * 20), `Classifying ${i+1}/${emails.length}...`);
+    await sleep(80);
+  }
+  return results;
+}
+
+async function classifyOne(email) {
+  // Keyword rules first
+  const subject = (email.subject || '').toLowerCase();
+  const from    = (email.from    || '').toLowerCase();
+  const atts    = (email.attachments || []).join(' ').toLowerCase();
+  for (const rule of state.rules) {
+    const p = rule.pattern.toLowerCase();
+    if (subject.includes(p) || from.includes(p) || atts.includes(p)) return rule.category;
+  }
+  // AI fallback
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': state.settings.apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514', max_tokens: 200,
+        messages: [{ role: 'user', content:
+          `Classify this email for an Australian investor. Reply with JSON only: {"category":"investment|expense|capital|review","confidence":0.0-1.0}
+
+Categories:
+- investment: portfolio statements, fund reports, annual reports
+- expense: invoices, receipts, tax documents, subscriptions
+- capital: capital call notices, drawdown requests, private market fund calls
+- review: anything unclear, urgent, or not fitting above
+
+Subject: ${email.subject}
+From: ${email.from}
+Attachments: ${(email.attachments||[]).join(', ')}
+Preview: ${email.snippet||''}` }]
+      })
+    });
+    if (!res.ok) return guessCategory(email);
+    const data   = await res.json();
+    const text   = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+    const parsed = JSON.parse(text.replace(/```json|```/g,'').trim());
+    return (parsed.confidence||0) >= 0.6 ? parsed.category : 'review';
+  } catch(e) {
+    return guessCategory(email);
+  }
+}
+
+function guessCategory(email) {
+  const s = ((email.subject||'') + ' ' + (email.from||'') + ' ' + (email.attachments||[]).join(' ')).toLowerCase();
+  if (s.includes('capital') || s.includes('call') || s.includes('drawdown')) return 'capital';
+  if (s.includes('statement') || s.includes('portfolio') || s.includes('fund') || s.includes('invest')) return 'investment';
+  if (s.includes('invoice') || s.includes('receipt') || s.includes('tax') || s.includes('gst')) return 'expense';
+  return 'review';
+}
+
+// ============================================================
+// PDF EXTRACTION via Anthropic API
+// ============================================================
+async function extractPDFData(emails) {
+  const extractions = { investments:[], expenses:[], capitalCalls:[] };
+  const doExtract = document.getElementById('opt-extract')?.checked !== false;
+
+  for (let i = 0; i < emails.length; i++) {
+    const email = emails[i];
+    if (!email.attachments?.length) continue;
+
+    const pct = 50 + Math.round((i / Math.max(emails.length,1)) * 25);
+    setProgress(pct, `Extracting ${i+1} of ${emails.length}...`);
+    log(`Extracting ${i+1}/${emails.length}: "${(email.subject||'').slice(0,50)}"`);
+
+    try {
+      const extracted = doExtract
+        ? await withTimeout(extractOne(email), 30000, 'extract ' + email.attachments[0])
+        : buildFromMetadata(email);
+
+      if (extracted) {
+        const record = { ...extracted, source: email.subject, date: email.date, from: email.from };
+        if      (email.category === 'investment') extractions.investments.push(record);
+        else if (email.category === 'expense')    extractions.expenses.push(record);
+        else if (email.category === 'capital')    extractions.capitalCalls.push(record);
+      }
+    } catch(e) {
+      log(`  Skipped (${e.message})`, 'warn');
+      // Still add a basic record from metadata so the email appears in tables
+      const record = buildFromMetadata(email);
+      if      (email.category === 'investment') extractions.investments.push(record);
+      else if (email.category === 'expense')    extractions.expenses.push(record);
+      else if (email.category === 'capital')    extractions.capitalCalls.push(record);
+    }
+
+    // Update tables live after each extraction
+    state.investments  = extractions.investments;
+    state.expenses     = extractions.expenses;
+    state.capitalCalls = extractions.capitalCalls;
+    renderDataTables();
+    updateDashboard();
+  }
+  return extractions;
+}
+
+function buildFromMetadata(email) {
+  // Fallback record built from email metadata alone (no Claude API call)
+  return {
+    source:      email.subject,
+    date:        email.date,
+    from:        email.from,
+    attachments: email.attachments,
+    raw:         email.snippet || '(metadata only — extraction timed out)'
+  };
+}
+
+async function extractOne(email) {
+  const systemPrompt = state.settings.systemPrompt || document.getElementById('system-prompt')?.value || '';
+
+  // Fetch PDF bytes with timeout
+  let pdfContent = null;
+  if (email.parts?.length && email.id) {
+    try {
+      const part   = email.parts[0];
+      const attRes = await withTimeout(
+        gmailFetch(`/users/me/messages/${email.id}/attachments/${part.body.attachmentId}`),
+        12000, 'fetch PDF'
+      );
+      if (attRes.data) {
+        pdfContent = attRes.data.replace(/-/g,'+').replace(/_/g,'/');
+        log(`  → PDF fetched (${Math.round(pdfContent.length * 0.75 / 1024)}KB)`, 'info');
+      }
+    } catch(e) {
+      log(`  → PDF fetch skipped: ${e.message}`, 'warn');
+    }
+  }
+
+  // Build Claude message
+  const userContent = pdfContent
+    ? [
+        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfContent } },
+        { type: 'text', text: `Email subject: ${email.subject}\nFrom: ${email.from}\nDate: ${email.date}\nCategory: ${email.category}\n\nExtract all financial data from this PDF. Return JSON only.` }
+      ]
+    : `Email subject: ${email.subject}\nFrom: ${email.from}\nDate: ${email.date}\nCategory: ${email.category}\nPDF: ${(email.attachments||[]).join(', ')}\nPreview: ${email.snippet||''}\n\nExtract all available financial data. Return JSON only.`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': state.settings.apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model:      'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      system:     systemPrompt,
+      messages:   [{ role: 'user', content: userContent }]
+    })
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(()=>({}));
+    throw new Error(err.error?.message || `API error ${res.status}`);
+  }
+
+  const data = await res.json();
+  const text  = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+  const clean = text.replace(/```json|```/g,'').trim();
+  const match = clean.match(/\{[\s\S]*\}/);
+  if (!match) return { raw: text.slice(0,300) };
+  try { return JSON.parse(match[0]); } catch(e) { return { raw: text.slice(0,300) }; }
+}
+
+// ============================================================
+// FLAG ITEMS
+// ============================================================
+function flagItems(extracted) {
+  const flagged = [];
+  const all = [
+    ...(extracted.investments||[]).map(r=>({...r,_cat:'investment'})),
+    ...(extracted.expenses||[]).map(r=>({...r,_cat:'expense'})),
+    ...(extracted.capitalCalls||[]).map(r=>({...r,_cat:'capital'}))
+  ];
+  const seen = new Set();
+  for (const item of all) {
+    const key = item.source || item.fund_name || item.vendor || '';
+    if (seen.has(key)) continue;
+    const amt = parseFloat(item.call_amount || item.portfolio_value || item.total || item.amount || 0);
+    const reasons = [];
+    if (amt > 50000) reasons.push('Amount exceeds $50,000');
+    if (!item.date && !item.reporting_period) reasons.push('Missing date');
+    if ((item.bank_account_details||'').toLowerCase().includes('usd') || item.wire_instructions) reasons.push('Foreign currency / wire transfer');
+    if (reasons.length) {
+      flagged.push({ ...item, flag_reason: reasons.join(' · '), category: item._cat });
+      seen.add(key);
+    }
+  }
+  state.flagged = flagged;
+  if (flagged.length) log(`${flagged.length} item(s) flagged for review`, 'warn');
+}
+
+// ============================================================
+// RENDER DASHBOARD
+// ============================================================
+function updateDashboard() {
+  document.getElementById('m-total').textContent   = state.emails.length || '—';
+  const totalDocs = state.investments.length + state.expenses.length + state.capitalCalls.length;
+  document.getElementById('m-pdfs').textContent    = totalDocs || '—';
+  const totalAmt = state.expenses.reduce((s,e) => s + parseFloat(e.total||e.amount||0), 0);
+  document.getElementById('m-dollars').textContent = totalDocs ? '$' + totalAmt.toLocaleString('en-AU',{maximumFractionDigits:0}) : '—';
+  document.getElementById('m-review').textContent  = state.flagged.length || '—';
+  document.getElementById('count-invest').textContent  = state.investments.length;
+  document.getElementById('count-expense').textContent = state.expenses.length;
+  document.getElementById('count-capital').textContent = state.capitalCalls.length;
+  document.getElementById('count-review').textContent  = state.flagged.length;
+
+  const container = document.getElementById('recent-activity');
+  if (!state.emails.length) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">◈</div><div class="empty-title">No activity yet</div><div style="font-size:11px">Run a scan to see results here</div></div>';
+    return;
+  }
+  container.innerHTML = state.emails.slice(0,8).map(e => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="flex:1;min-width:0;margin-right:10px">
+        <div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.subject||'No subject'}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:1px">${e.from||''}</div>
+      </div>
+      ${getBadge(e.category)}
+    </div>`).join('');
+}
+
+function getBadge(cat) {
+  const cls = { investment:'badge-invest', expense:'badge-expense', capital:'badge-capital', review:'badge-review' };
+  const lbl = { investment:'Investment', expense:'Tax Invoice', capital:'Capital Call', review:'⚑ Review' };
+  return `<span class="badge ${cls[cat]||'badge-done'}">${lbl[cat]||cat||'Unknown'}</span>`;
+}
+
+// ============================================================
+// RENDER TABLES
+// ============================================================
+function renderEmailTable() {
+  const filter = document.getElementById('filter-cat').value;
+  const emails = filter ? state.emails.filter(e => e.category === filter) : state.emails;
+  const tbody  = document.getElementById('email-tbody');
+  if (!emails.length) {
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">✉</div><div class="empty-title">No emails yet</div><div>Run a scan first</div></div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = emails.map((e,i) => `<tr>
+    <td style="white-space:nowrap">${e.date ? new Date(e.date).toLocaleDateString('en-AU') : '—'}</td>
+    <td style="font-size:11px;color:var(--muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.from||'—'}</td>
+    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.subject||'No subject'}</td>
+    <td>${getBadge(e.category)}</td>
+    <td style="color:var(--muted);font-size:11px">${(e.attachments||[]).length} PDF(s)</td>
+    <td><span class="badge badge-done">Processed</span></td>
+    <td><button class="btn btn-secondary btn-sm" onclick="viewEmail(${state.emails.indexOf(e)})">View</button></td>
+  </tr>`).join('');
+}
+
+function viewEmail(idx) {
+  const e = state.emails[idx];
+  document.getElementById('email-modal-title').textContent = e.subject || 'Email Detail';
+  document.getElementById('email-modal-body').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div><div class="form-label">From</div><div style="font-size:12px;margin-top:4px">${e.from||'—'}</div></div>
+      <div><div class="form-label">Date</div><div style="font-size:12px;margin-top:4px">${e.date ? new Date(e.date).toLocaleString('en-AU') : '—'}</div></div>
+      <div><div class="form-label">Category</div><div style="margin-top:4px">${getBadge(e.category)}</div></div>
+      <div><div class="form-label">PDF Attachments</div><div style="font-size:12px;margin-top:4px">${(e.attachments||[]).join(', ')||'None'}</div></div>
+      <div><div class="form-label">Preview</div><div style="font-size:12px;color:var(--muted);margin-top:4px;line-height:1.6">${e.snippet||'—'}</div></div>
+    </div>`;
+  openModal('email-modal');
+}
+
+function renderDataTables() {
+  // Investments
+  document.getElementById('invest-tbody').innerHTML = state.investments.length
+    ? state.investments.map(r => `<tr>
+        <td>${r.date ? new Date(r.date).toLocaleDateString('en-AU') : '—'}</td>
+        <td>${r.fund_name||r.institution||'—'}</td>
+        <td>${r.portfolio_value ? '$'+parseFloat(r.portfolio_value).toLocaleString('en-AU') : '—'}</td>
+        <td>${r.reporting_period||'—'}</td>
+        <td>${r.asset_class||'—'}</td>
+        <td style="font-size:11px;color:var(--muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(r.source||'').slice(0,50)}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="6"><div class="empty-state" style="padding:18px"><div class="empty-title">No investment data</div></div></td></tr>';
+
+  // Expenses
+  document.getElementById('expense-tbody').innerHTML = state.expenses.length
+    ? state.expenses.map(r => `<tr>
+        <td>${r.date ? new Date(r.date).toLocaleDateString('en-AU') : '—'}</td>
+        <td>${r.vendor||'—'}</td>
+        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.description||'—'}</td>
+        <td>${r.total ? '$'+parseFloat(r.total).toLocaleString('en-AU') : '—'}</td>
+        <td>${r.gst_amount ? '$'+parseFloat(r.gst_amount).toLocaleString('en-AU') : '—'}</td>
+        <td>${r.expense_category||'—'}</td>
+        <td style="font-size:11px;color:var(--muted)">${(r.source||'').slice(0,40)}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="7"><div class="empty-state" style="padding:18px"><div class="empty-title">No invoices</div></div></td></tr>';
+
+  // Capital Calls
+  document.getElementById('capital-tbody').innerHTML = state.capitalCalls.length
+    ? state.capitalCalls.map(r => `<tr>
+        <td>${r.date ? new Date(r.date).toLocaleDateString('en-AU') : '—'}</td>
+        <td>${r.fund_name||'—'}</td>
+        <td>${r.call_amount ? '$'+parseFloat(r.call_amount).toLocaleString('en-AU') : '—'}</td>
+        <td>${r.due_date||'—'}</td>
+        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.purpose||'—'}</td>
+        <td style="font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.bank_account_details||'—'}</td>
+        <td><span class="badge badge-review">Pending</span></td>
+      </tr>`).join('')
+    : '<tr><td colspan="7"><div class="empty-state" style="padding:18px"><div class="empty-title">No capital calls</div></div></td></tr>';
+
+  // Flagged
+  document.getElementById('flagged-tbody').innerHTML = state.flagged.length
+    ? state.flagged.map(r => `<tr>
+        <td>${r.date ? new Date(r.date).toLocaleDateString('en-AU') : '—'}</td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(r.source||r.fund_name||r.vendor||'—').slice(0,50)}</td>
+        <td style="color:var(--review)">${r.flag_reason||'—'}</td>
+        <td>${getBadge(r.category)}</td>
+        <td><button class="btn btn-secondary btn-sm" onclick="resolveFlag(this)">Resolve</button></td>
+      </tr>`).join('')
+    : '<tr><td colspan="5"><div class="empty-state" style="padding:18px"><div class="empty-title">Nothing flagged ✓</div></div></td></tr>';
+}
+
+function resolveFlag(btn) {
+  btn.closest('tr').style.opacity = '0.4';
+  btn.textContent = '✓ Resolved';
+  btn.disabled = true;
+}
+
+function renderCapitalSchedule() {
+  const tbody = document.getElementById('capital-schedule-tbody');
+  if (!state.capitalCalls.length) return;
+  tbody.innerHTML = state.capitalCalls.map(r => {
+    const due  = r.due_date ? new Date(r.due_date) : null;
+    const days = due ? Math.round((due - new Date()) / 86400000) : null;
+    const col  = days !== null ? (days < 7 ? 'color:var(--review);font-weight:500' : days < 14 ? 'color:var(--accent3)' : 'color:var(--accent)') : '';
+    return `<tr>
+      <td>${r.fund_name||'—'}</td>
+      <td>${r.call_amount ? '$'+parseFloat(r.call_amount).toLocaleString('en-AU') : '—'}</td>
+      <td>${r.due_date||'—'}</td>
+      <td style="${col}">${days !== null ? days + ' days' : '—'}</td>
+      <td><span class="badge badge-review">Pending</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// ============================================================
+// EXPORT
+// ============================================================
+function exportExcel() {
+  if (!state.emails.length) { alert('No data to export. Run a scan first.'); return; }
+  const wb = XLSX.utils.book_new();
+
+  const investData = [['Date','Fund / Institution','Portfolio Value','Period','Asset Class','Source Email']];
+  state.investments.forEach(r => investData.push([r.date||'', r.fund_name||r.institution||'', r.portfolio_value||'', r.reporting_period||'', r.asset_class||'', r.source||'']));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(investData), 'Investment Statements');
+
+  const expData = [['Date','Vendor','Description','Amount (ex GST)','GST','Total','Category','Source Email']];
+  state.expenses.forEach(r => expData.push([r.date||'', r.vendor||'', r.description||'', r.amount_ex_gst||'', r.gst_amount||'', r.total||'', r.expense_category||'', r.source||'']));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(expData), 'Tax Invoices');
+
+  const capData = [['Date','Fund Name','Call Amount','Due Date','Purpose','Bank Account','Status']];
+  state.capitalCalls.forEach(r => capData.push([r.date||'', r.fund_name||'', r.call_amount||'', r.due_date||'', r.purpose||'', r.bank_account_details||'', 'Pending']));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(capData), 'Capital Calls');
+
+  const totalExp = state.expenses.reduce((s,e) => s + parseFloat(e.total||0), 0);
+  const totalGST = state.expenses.reduce((s,e) => s + parseFloat(e.gst_amount||0), 0);
+  const totalCap = state.capitalCalls.reduce((s,c) => s + parseFloat(c.call_amount||0), 0);
+  const summary  = [
+    ['Inbox Intelligence — Financial Report'],
+    ['Generated', new Date().toLocaleString('en-AU')],
+    [],
+    ['SUMMARY'],
+    ['Emails Processed',         state.emails.length],
+    ['Investment Statements',    state.investments.length],
+    ['Tax Invoices',             state.expenses.length],
+    ['Capital Calls',            state.capitalCalls.length],
+    ['Items Flagged for Review', state.flagged.length],
+    [],
+    ['FINANCIALS (AUD)'],
+    ['Total Expenses (incl. GST)', totalExp],
+    ['GST Claimable',              totalGST],
+    ['Net Expenses (ex GST)',      totalExp - totalGST],
+    ['Total Capital Called',       totalCap],
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), 'Summary');
+
+  const filename = `Financial_Report_${new Date().toISOString().slice(0,10)}.xlsx`;
+  XLSX.writeFile(wb, filename);
+  log(`Excel exported: ${filename}`, 'success');
+  document.getElementById('od-status').innerHTML = '<span class="dot dot-yellow"></span>Ready to file';
+}
+
+function exportCSV() {
+  const all = [
+    ...state.investments.map(r => ({...r, type:'Investment'})),
+    ...state.expenses.map(r    => ({...r, type:'Expense'})),
+    ...state.capitalCalls.map(r=> ({...r, type:'Capital Call'}))
+  ];
+  if (!all.length) { alert('No data to export. Run a scan first.'); return; }
+  const keys = [...new Set(all.flatMap(Object.keys))];
+  const csv  = [keys.join(','), ...all.map(r => keys.map(k => JSON.stringify(r[k]||'')).join(','))].join('\n');
+  const a    = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([csv], {type:'text/csv'})), download: `financial_data_${new Date().toISOString().slice(0,10)}.csv` });
+  a.click();
+}
+
+function generateTaxSummary() {
+  const totalExp = state.expenses.reduce((s,e) => s + parseFloat(e.total||0), 0);
+  const totalGST = state.expenses.reduce((s,e) => s + parseFloat(e.gst_amount||0), 0);
+  const totalCap = state.capitalCalls.reduce((s,c) => s + parseFloat(c.call_amount||0), 0);
+  document.getElementById('tax-summary-output').innerHTML = `
+    <div class="divider"></div>
+    <div class="card-title">Summary</div>
+    <div style="display:flex;flex-direction:column;gap:0">
+      ${[
+        ['Total deductible expenses', '$'+totalExp.toLocaleString('en-AU',{minimumFractionDigits:2}), ''],
+        ['GST claimable',             '$'+totalGST.toLocaleString('en-AU',{minimumFractionDigits:2}), 'color:var(--invest)'],
+        ['Net expenses (ex GST)',     '$'+(totalExp-totalGST).toLocaleString('en-AU',{minimumFractionDigits:2}), ''],
+        ['Capital calls committed',   '$'+totalCap.toLocaleString('en-AU',{minimumFractionDigits:2}), 'color:var(--capital)'],
+      ].map(([l,v,c]) => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">${l}</span><span style="${c}">${v}</span></div>`).join('')}
+    </div>`;
+}
+
+// ============================================================
+// RULES
+// ============================================================
+function renderRules() {
+  document.getElementById('rules-tbody').innerHTML = state.rules.map((r,i) => `
+    <tr>
+      <td><span class="tag">${r.pattern}</span></td>
+      <td>${getBadge(r.category)}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteRule(${i})">✕</button></td>
+    </tr>`).join('');
+}
+
+function saveRule() {
+  const pattern  = document.getElementById('rule-pattern').value.trim();
+  const category = document.getElementById('rule-category').value;
+  if (!pattern) return;
+  state.rules.push({ pattern, category });
+  persistSave();
+  renderRules();
+  document.getElementById('rule-pattern').value = '';
+  closeModal('rule-modal');
+}
+
+function deleteRule(i) {
+  state.rules.splice(i, 1);
+  persistSave();
+  renderRules();
+}
+
+// ============================================================
+// SETTINGS
+// ============================================================
+function saveSettings() {
+  state.settings.apiKey    = document.getElementById('api-key-input').value.trim();
+  state.gmail.clientId     = document.getElementById('gmail-client-id').value.trim();
+  state.gmail.clientSecret = document.getElementById('gmail-client-secret').value.trim();
+  state.gmail.refreshToken = document.getElementById('gmail-refresh-token').value.trim();
+  state.ms365.clientId     = document.getElementById('ms-client-id').value.trim();
+  persistSave();
+  updateODDisplay();
+  if (state.gmail.clientId && state.gmail.clientSecret && state.gmail.refreshToken) {
+    log('Testing Gmail connection...', 'gmail');
+    silentGmailRefresh();
+  }
+  const el = document.getElementById('settings-saved');
+  el.style.display = 'flex';
+  setTimeout(() => el.style.display = 'none', 3000);
+  log('Settings saved', 'success');
+}
+
+function saveODSettings() {
+  const folder = document.getElementById('od-folder')?.value.trim() || 'Financial Reports';
+  const wb     = document.getElementById('od-workbook')?.value.trim() || 'Financial_Inbox_Data.xlsx';
+  state.ms365.odFolder   = folder;
+  state.ms365.odWorkbook = wb;
+  persistSave();
+  updateODDisplay();
+  log('OneDrive folder settings saved', 'success');
+}
+
+function savePrompt() {
+  state.settings.systemPrompt = document.getElementById('system-prompt').value;
+  persistSave();
+  log('Extraction prompt saved', 'success');
+}
+
+function updateODDisplay() {
+  const fld   = state.ms365.odFolder   || 'Financial Reports';
+  const fldEl = document.getElementById('od-folder-display');
+  if (fldEl) fldEl.textContent = fld;
+  // Sync folder input on export page if it exists
+  const folderInput = document.getElementById('od-folder');
+  if (folderInput && !folderInput.value) folderInput.value = fld;
+}
+
+// ============================================================
+// MICROSOFT 365 PKCE AUTH (OneDrive only)
+// ============================================================
+const _msCallback = (function() {
+  const p = new URLSearchParams(window.location.search);
+  const code = p.get('code'), st = p.get('state'), err = p.get('error');
+  if (!code && !err) return null;
+  window.history.replaceState({}, document.title, window.location.pathname);
+  return { code, state: st, error: err, desc: p.get('error_description') };
+})();
+const _msVerifier = sessionStorage.getItem('ms_pkce_v');
+const _msState    = sessionStorage.getItem('ms_pkce_s');
+const _msClient   = sessionStorage.getItem('ms_pkce_c') || localStorage.getItem('ii_ms_client') || '';
+const _msRedirect = sessionStorage.getItem('ms_pkce_r');
+
+function b64url(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,''); }
+
+async function startMSAuth() {
+  const clientId = document.getElementById('ms-client-id').value.trim();
+  if (!clientId) { alert('Please enter your Azure Client ID first.'); return; }
+  state.ms365.clientId = clientId;
+  try { localStorage.setItem('ii_ms_client', clientId); } catch(e) {}
+
+  const arr = new Uint8Array(48); crypto.getRandomValues(arr);
+  const verifier  = b64url(arr);
+  const digest    = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+  const challenge = b64url(digest);
+  const stParam   = b64url(crypto.getRandomValues(new Uint8Array(16)));
+  const redirect  = window.location.href.split('?')[0].split('#')[0];
+
+  sessionStorage.setItem('ms_pkce_v', verifier);
+  sessionStorage.setItem('ms_pkce_s', stParam);
+  sessionStorage.setItem('ms_pkce_c', clientId);
+  sessionStorage.setItem('ms_pkce_r', redirect);
+
+  window.location.href = [
+    'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+    `?client_id=${encodeURIComponent(clientId)}`,
+    '&response_type=code',
+    `&redirect_uri=${encodeURIComponent(redirect)}`,
+    '&scope=' + encodeURIComponent('Files.ReadWrite User.Read offline_access'),
+    `&code_challenge=${challenge}`,
+    '&code_challenge_method=S256',
+    `&state=${stParam}`,
+    '&response_mode=query',
+    '&prompt=select_account'
+  ].join('');
+}
+
+async function exchangeMSCode(code, clientId, redirect, verifier) {
+  const body = new URLSearchParams({ client_id:clientId, grant_type:'authorization_code', code, redirect_uri:redirect, code_verifier:verifier, scope:'Files.ReadWrite User.Read offline_access' });
+  const res  = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:body.toString() });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error_description || data.error);
+  return data;
+}
+
+async function silentMSRefresh() {
+  if (!state.ms365.refreshToken || !state.ms365.clientId) return;
+  try {
+    const body = new URLSearchParams({ client_id:state.ms365.clientId, grant_type:'refresh_token', refresh_token:state.ms365.refreshToken, scope:'Files.ReadWrite User.Read offline_access' });
+    const res  = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:body.toString() });
+    const data = await res.json();
+    if (data.access_token) {
+      state.ms365.accessToken  = data.access_token;
+      if (data.refresh_token) state.ms365.refreshToken = data.refresh_token;
+      state.ms365.tokenExpiry  = Date.now() + data.expires_in * 1000;
+      persistSave();
+      setTimeout(silentMSRefresh, (data.expires_in - 300) * 1000);
+    }
+  } catch(e) {}
+}
+
+function updateMSStatus(name) {
+  state.ms365.userName = name;
+  const el = document.getElementById('ms-conn-status');
+  if (el) { el.style.color='var(--accent)'; el.textContent = '✓ Connected as ' + name; }
+  const btn = document.getElementById('ms-signout-btn');
+  if (btn) btn.style.display = 'block';
+  const odEl = document.getElementById('od-status');
+  if (odEl) odEl.innerHTML = '<span class="dot dot-green"></span>' + name;
+  // Update export page auth box
+  const icon  = document.getElementById('od-auth-icon');
+  const title = document.getElementById('od-auth-title');
+  const sub   = document.getElementById('od-auth-sub');
+  if (icon)  icon.textContent  = '✅';
+  if (title) title.textContent = 'Connected as ' + name;
+  if (sub)   sub.textContent   = 'OneDrive and Excel write-back enabled';
+}
+
+function msSignOut() {
+  state.ms365 = { accessToken:'', refreshToken:'', tokenExpiry:0, clientId:state.ms365.clientId, userName:'', odFolder:state.ms365.odFolder, odWorkbook:state.ms365.odWorkbook };
+  [SK.msToken, SK.msRefresh, SK.msExpiry, SK.msUser].forEach(k => { try { localStorage.removeItem(k); } catch(e) {} });
+  const el = document.getElementById('ms-conn-status');
+  if (el) { el.style.color=''; el.textContent='Not connected'; }
+  document.getElementById('ms-signout-btn').style.display = 'none';
+  document.getElementById('od-status').innerHTML = '<span class="dot dot-grey"></span>Not configured';
+  const icon  = document.getElementById('od-auth-icon');
+  const title = document.getElementById('od-auth-title');
+  const sub   = document.getElementById('od-auth-sub');
+  if (icon)  icon.textContent  = '🔒';
+  if (title) title.textContent = 'Not signed in to Microsoft';
+  if (sub)   sub.textContent   = 'Go to Settings → OneDrive to connect';
+}
+
+// ============================================================
+// MICROSOFT GRAPH API
+// ============================================================
+async function graphFetch(endpoint, options={}) {
+  if (state.ms365.tokenExpiry && Date.now() > state.ms365.tokenExpiry - 120000) await silentMSRefresh();
+  const token = state.ms365.accessToken;
+  if (!token) throw new Error('Not signed in to Microsoft. Go to Settings → OneDrive Connection and click Sign in.');
+  const res = await fetch('https://graph.microsoft.com/v1.0' + endpoint, {
+    ...options,
+    headers: { 'Authorization':'Bearer '+token, 'Content-Type':'application/json', ...(options.headers||{}) }
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(()=>({}));
+    throw new Error(err.error?.message || `Graph API ${res.status}`);
+  }
+  const ct = res.headers.get('content-type')||'';
+  return ct.includes('json') ? res.json() : res.arrayBuffer();
+}
+
+// ============================================================
+// ONEDRIVE EXCEL WRITE-BACK
+// ============================================================
+async function writeToOneDriveExcel() {
+  const btn = document.getElementById('od-excel-btn');
+  const statusEl = document.getElementById('od-excel-status');
+  btn.disabled = true; btn.textContent = '⟳ Writing...';
+  statusEl.innerHTML = '<div style="color:var(--muted);font-size:12px"><span class="spinner" style="border-top-color:#5aabf0"></span>Connecting to OneDrive...</div>';
+
+  try {
+    if (!state.ms365.accessToken) throw new Error('Not signed in to Microsoft. Sign in via Settings → OneDrive Connection.');
+    if (!state.investments.length && !state.expenses.length && !state.capitalCalls.length) throw new Error('No data to write. Run a scan first.');
+
+    const folder   = state.ms365.odFolder   || 'Financial Reports';
+    const wbName   = state.ms365.odWorkbook || 'Financial_Inbox_Data.xlsx';
+    let fileId = null;
+
+    // Find or create workbook
+    try {
+      const found = await graphFetch(`/me/drive/root:/${folder}/${wbName}`);
+      fileId = found.id;
+      log(`Found existing workbook: ${wbName}`, 'info');
+    } catch(e) {
+      log(`Creating new workbook: ${wbName}`, 'info');
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Date','Fund / Institution','Portfolio Value','Period','Asset Class','Source']]), 'Investment Statements');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Date','Vendor','Description','Amount ex GST','GST','Total','Category','Source']]), 'Tax Invoices');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Date','Fund Name','Call Amount','Due Date','Purpose','Bank Account','Status']]), 'Capital Calls');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Generated','Emails','Investments','Expenses','Capital Calls','Flagged','Total Expenses','Capital Called']]), 'Summary');
+      const buf = XLSX.write(wb, { type:'array', bookType:'xlsx' });
+      const up  = await graphFetch(`/me/drive/root:/${folder}/${wbName}:/content`, {
+        method:'PUT', headers:{'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}, body: new Blob([buf])
+      });
+      fileId = up.id;
+      await sleep(2500);
+    }
+
+    // Append rows to each sheet
+    if (state.investments.length) {
+      await appendRows(fileId, 'Investment Statements', state.investments.map(r=>[r.date||'',r.fund_name||r.institution||'',r.portfolio_value||'',r.reporting_period||'',r.asset_class||'',r.source||'']));
+    }
+    if (state.expenses.length) {
+      await appendRows(fileId, 'Tax Invoices', state.expenses.map(r=>[r.date||'',r.vendor||'',r.description||'',r.amount_ex_gst||'',r.gst_amount||'',r.total||'',r.expense_category||'',r.source||'']));
+    }
+    if (state.capitalCalls.length) {
+      await appendRows(fileId, 'Capital Calls', state.capitalCalls.map(r=>[r.date||'',r.fund_name||'',r.call_amount||'',r.due_date||'',r.purpose||'',r.bank_account_details||'','Pending']));
+    }
+    const totalExp = state.expenses.reduce((s,e)=>s+parseFloat(e.total||0),0);
+    const totalCap = state.capitalCalls.reduce((s,c)=>s+parseFloat(c.call_amount||0),0);
+    await appendRows(fileId, 'Summary', [[new Date().toLocaleString('en-AU'), state.emails.length, state.investments.length, state.expenses.length, state.capitalCalls.length, state.flagged.length, '$'+totalExp.toLocaleString('en-AU'), '$'+totalCap.toLocaleString('en-AU')]]);
+
+    const total = state.investments.length + state.expenses.length + state.capitalCalls.length;
+    statusEl.innerHTML = `<div class="info-box green"><span>✓</span><span><strong>Excel updated!</strong> ${total} record(s) written to ${wbName} on OneDrive.</span></div>`;
+    document.getElementById('od-status').innerHTML = '<span class="dot dot-green"></span>Synced';
+    log(`OneDrive Excel updated: ${total} records`, 'success');
+  } catch(e) {
+    statusEl.innerHTML = `<div class="info-box" style="background:rgba(240,74,122,0.05);border-color:rgba(240,74,122,0.2)"><span>⚠</span><span style="color:var(--review)">${e.message}</span></div>`;
+    log('OneDrive Excel write failed: ' + e.message, 'error');
+  }
+  btn.disabled = false; btn.textContent = '⊞ Write to OneDrive Excel';
+}
+
+async function appendRows(fileId, sheet, rows) {
+  try {
+    const range = await graphFetch(`/me/drive/items/${fileId}/workbook/worksheets/${encodeURIComponent(sheet)}/usedRange?$select=rowCount`);
+    const next  = (range.rowCount || 1) + 1;
+    const col   = String.fromCharCode(64 + rows[0].length);
+    const addr  = `A${next}:${col}${next + rows.length - 1}`;
+    await graphFetch(`/me/drive/items/${fileId}/workbook/worksheets/${encodeURIComponent(sheet)}/range(address='${addr}')`, {
+      method:'PATCH', body: JSON.stringify({ values: rows })
+    });
+    log(`  → ${rows.length} row(s) → "${sheet}"`, 'info');
+  } catch(e) {
+    log(`  → Could not write to "${sheet}": ${e.message}`, 'warn');
+  }
+}
+
+// ============================================================
+// ONEDRIVE PDF UPLOAD
+// ============================================================
+async function uploadPDFsToOneDrive() {
+  if (!state.ms365.accessToken) { alert('Not signed in to Microsoft. Sign in via Settings → OneDrive Connection.'); return; }
+  if (!state.emails.length) { alert('No emails processed yet. Run a scan first.'); return; }
+
+  const statusEl = document.getElementById('od-pdf-status');
+  statusEl.innerHTML = '<div style="color:var(--muted);font-size:12px"><span class="spinner" style="border-top-color:#5aabf0"></span>Uploading PDFs to OneDrive...</div>';
+
+  const folder = state.ms365.odFolder || 'Financial Reports';
+  const subMap = { investment:'Investment Statements', expense:'Tax Invoices', capital:'Capital Calls', review:'Review Required' };
+  let count = 0;
+  const rows  = [];
+
+  for (const email of state.emails) {
+    if (!email.parts?.length || !email.id) continue;
+    for (const part of email.parts) {
+      try {
+        // Fetch PDF bytes from Gmail
+        const attRes = await gmailFetch(`/users/me/messages/${email.id}/attachments/${part.body.attachmentId}`);
+        if (!attRes.data) continue;
+        const b64  = attRes.data.replace(/-/g,'+').replace(/_/g,'/');
+        const bin  = Uint8Array.from(atob(b64), c=>c.charCodeAt(0));
+        const sub  = subMap[email.category] || 'Other';
+        const date = email.date ? new Date(email.date).toISOString().slice(0,10) : 'undated';
+        const name = (part.filename||'attachment.pdf').replace(/[^a-zA-Z0-9._-]/g,'_');
+        const path = `${folder}/PDFs/${sub}/${date}_${name}`;
+        await graphFetch(`/me/drive/root:/${path}:/content`, {
+          method:'PUT', headers:{'Content-Type':'application/pdf'}, body:bin
+        });
+        count++;
+        rows.push(`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--surface2);border-radius:5px;font-size:11px"><span>📄 ${name}</span><span style="color:var(--accent)">✓ Filed</span></div>`);
+        log(`  → Filed: ${sub}/${name}`, 'info');
+      } catch(e) {
+        log(`  → Failed ${part.filename||'?'}: ${e.message}`, 'warn');
+        rows.push(`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--surface2);border-radius:5px;font-size:11px"><span>📄 ${part.filename||'?'}</span><span style="color:var(--review)">✗ Failed</span></div>`);
+      }
+    }
+  }
+
+  statusEl.innerHTML = rows.length
+    ? `<div class="info-box green" style="margin-bottom:8px"><span>✓</span><span><strong>${count} PDF(s) filed</strong> to OneDrive/${folder}/PDFs/</span></div>` + rows.join('')
+    : `<div class="info-box" style="background:rgba(240,74,122,0.05);border-color:rgba(240,74,122,0.2)"><span>⚠</span><span style="color:var(--review)">No PDFs could be uploaded. Check Gmail and OneDrive connections.</span></div>`;
+}
+
+// ============================================================
+// BACKGROUND ONEDRIVE HELPERS (called from startProcessing)
+// ============================================================
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout after ${ms/1000}s: ${label}`)), ms))
+  ]);
+}
+
+async function writeExcelViaGraph(extracted) {
+  const folder = state.ms365.odFolder   || 'Financial Reports';
+  const wbName = state.ms365.odWorkbook || 'Financial_Inbox_Data.xlsx';
+  let fileId = null;
+  try {
+    const found = await withTimeout(graphFetch(`/me/drive/root:/${folder}/${wbName}`), 10000, 'find workbook');
+    fileId = found.id;
+    log(`Found existing workbook: ${wbName}`, 'info');
+  } catch(e) {
+    log(`Creating new workbook: ${wbName}`, 'info');
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Date','Fund / Institution','Portfolio Value','Period','Asset Class','Source']]), 'Investment Statements');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Date','Vendor','Description','Amount ex GST','GST','Total','Category','Source']]), 'Tax Invoices');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Date','Fund Name','Call Amount','Due Date','Purpose','Bank Account','Status']]), 'Capital Calls');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Generated','Emails','Investments','Expenses','Capital Calls','Flagged']]), 'Summary');
+    const buf = XLSX.write(wb, { type:'array', bookType:'xlsx' });
+    const up  = await withTimeout(graphFetch(`/me/drive/root:/${folder}/${wbName}:/content`, {
+      method:'PUT', headers:{'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}, body: new Blob([buf])
+    }), 20000, 'create workbook');
+    fileId = up.id;
+    await sleep(2500);
+  }
+  if (!fileId) throw new Error('Could not find or create workbook');
+  if ((extracted.investments||[]).length)
+    await appendRows(fileId, 'Investment Statements', extracted.investments.map(r=>[r.date||'',r.fund_name||r.institution||'',r.portfolio_value||'',r.reporting_period||'',r.asset_class||'',r.source||'']));
+  if ((extracted.expenses||[]).length)
+    await appendRows(fileId, 'Tax Invoices', extracted.expenses.map(r=>[r.date||'',r.vendor||'',r.description||'',r.amount_ex_gst||'',r.gst_amount||'',r.total||'',r.expense_category||'',r.source||'']));
+  if ((extracted.capitalCalls||[]).length)
+    await appendRows(fileId, 'Capital Calls', extracted.capitalCalls.map(r=>[r.date||'',r.fund_name||'',r.call_amount||'',r.due_date||'',r.purpose||'',r.bank_account_details||'','Pending']));
+  const totalExp = (extracted.expenses||[]).reduce((s,e)=>s+parseFloat(e.total||0),0);
+  const totalCap = (extracted.capitalCalls||[]).reduce((s,c)=>s+parseFloat(c.call_amount||0),0);
+  await appendRows(fileId, 'Summary', [[new Date().toLocaleString('en-AU'), state.emails.length, (extracted.investments||[]).length, (extracted.expenses||[]).length, (extracted.capitalCalls||[]).length, state.flagged.length, '$'+totalExp.toLocaleString('en-AU'), '$'+totalCap.toLocaleString('en-AU')]]);
+  const total = (extracted.investments||[]).length + (extracted.expenses||[]).length + (extracted.capitalCalls||[]).length;
+  log(`OneDrive Excel updated: ${total} records`, 'success');
+  document.getElementById('od-status').innerHTML = '<span class="dot dot-green"></span>Synced';
+}
+
+async function uploadAllPDFsBackground(emails) {
+  const folder = state.ms365.odFolder || 'Financial Reports';
+  const subMap = { investment:'Investment Statements', expense:'Tax Invoices', capital:'Capital Calls', review:'Review Required' };
+  let count = 0;
+  for (const email of emails) {
+    if (!email.parts?.length || !email.id) continue;
+    for (const part of email.parts) {
+      try {
+        const attRes = await withTimeout(
+          gmailFetch(`/users/me/messages/${email.id}/attachments/${part.body.attachmentId}`),
+          15000, part.filename || 'attachment'
+        );
+        if (!attRes.data) continue;
+        const b64  = attRes.data.replace(/-/g,'+').replace(/_/g,'/');
+        const bin  = Uint8Array.from(atob(b64), c=>c.charCodeAt(0));
+        const sub  = subMap[email.category] || 'Other';
+        const date = email.date ? new Date(email.date).toISOString().slice(0,10) : 'undated';
+        const name = (part.filename||'attachment.pdf').replace(/[^a-zA-Z0-9._-]/g,'_');
+        const path = `${folder}/PDFs/${sub}/${date}_${name}`;
+        await withTimeout(
+          graphFetch(`/me/drive/root:/${path}:/content`, { method:'PUT', headers:{'Content-Type':'application/pdf'}, body:bin }),
+          15000, 'upload ' + name
+        );
+        count++;
+        log(`  → Filed: ${sub}/${name}`, 'info');
+      } catch(e) {
+        log(`  → Skipped ${part.filename||'?'}: ${e.message}`, 'warn');
+      }
+    }
+  }
+  log(`${count} PDF(s) filed to OneDrive`, count > 0 ? 'success' : 'warn');
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ============================================================
+// INIT
+// ============================================================
+persistLoad();
+renderRules();
+updateDashboard();
+renderEmailTable();
+renderDataTables();
+updateODDisplay();
+
+// Handle Microsoft OAuth callback (returning from Azure login)
+if (_msCallback) {
+  showPage('settings');
+  if (_msCallback.error) {
+    log('Microsoft auth error: ' + _msCallback.error, 'error');
+  } else if (_msCallback.state !== _msState) {
+    log('Microsoft auth state mismatch — try again', 'error');
+  } else {
+    log('Microsoft auth code received — exchanging for token...', 'info');
+    (async () => {
+      try {
+        const tokens = await exchangeMSCode(_msCallback.code, _msClient, _msRedirect, _msVerifier);
+        state.ms365.accessToken  = tokens.access_token;
+        state.ms365.refreshToken = tokens.refresh_token || '';
+        state.ms365.tokenExpiry  = Date.now() + tokens.expires_in * 1000;
+        state.ms365.clientId     = _msClient;
+        const profile = await graphFetch('/me?$select=displayName,mail,userPrincipalName');
+        const name = profile.displayName || profile.mail || 'Microsoft user';
+        updateMSStatus(name);
+        persistSave();
+        log('Microsoft 365 connected: ' + name, 'success');
+        ['ms_pkce_v','ms_pkce_s','ms_pkce_c','ms_pkce_r'].forEach(k=>sessionStorage.removeItem(k));
+      } catch(e) {
+        log('Microsoft token exchange failed: ' + e.message, 'error');
+      }
+    })();
+  }
+}
+
+// Wire up query preview
+['gmail-query','sender-filter','subject-filter','date-range'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) { el.addEventListener('input', updateQueryPreview); el.addEventListener('change', updateQueryPreview); }
+});
+updateQueryPreview();
+
+document.querySelectorAll('.modal-overlay').forEach(m =>
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); })
+);
+</script>
+</body>
+</html>
